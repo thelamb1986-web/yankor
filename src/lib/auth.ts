@@ -109,7 +109,7 @@ async function insertClienteRecord(
 
   let lastError = null;
   for (const payload of attempts) {
-    const { error } = await admin.from("clientes").insert(payload);
+    const { error } = await admin.from("clientes").insert(payload as never);
     if (!error) return null;
     lastError = error;
   }

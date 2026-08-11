@@ -36,7 +36,7 @@ export default async function DashboardPage() {
           include: { company: true },
         }),
       ])
-    : [0, 0, 0, [] as Awaited<ReturnType<typeof prisma.assessment.findMany>>, [] as Awaited<ReturnType<typeof prisma.assessment.findMany>>];
+    : [0, 0, 0, [], []];
 
   return (
     <div>
