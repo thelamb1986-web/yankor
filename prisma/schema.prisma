@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Consultant {
+  id            String       @id @default(cuid())
+  name          String
+  email         String       @unique
+  passwordHash  String
+  role          String       @default("consultant") // admin | consultant
+  status        String       @default("active") // active | inactive
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  assessments   Assessment[]
+  companies     Company[]
+}
+
+model Company {
+  id              String       @id @default(cuid())
+  tradeName       String
+  legalName       String?
+  sector          String?
+  companyType     String // Manufactura | Servicios
+  employees       Int?
+  city            String?
+  contactName     String?
+  contactRole     String?
+  phone           String?
+  email           String?
+  createdById     String?
+  createdBy       Consultant?  @relation(fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  isDemo          Boolean      @default(false)
+  assessments     Assessment[]
+}
+
+/// Catálogo de dimensiones (Y1–Y7). Editable sin tocar código.
+model Dimension {
+  id          String      @id @default(cuid())
+  code        String      @unique // Y1, Y2...
+  name        String
+  weight      Float // 0.10, 0.20...
+  sortOrder   Int
+  description String?
+  active      Boolean     @default(true)
+  indicators  Indicator[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+/// Catálogo de indicadores / preguntas. Fuente de verdad editable.
+model Indicator {
+  id                    String   @id @default(cuid())
+  code                  String   @unique // Y1-01
+  dimensionId           String
+  dimension             Dimension @relation(fields: [dimensionId], references: [id])
+  name                  String
+  question              String
+  description           String?
+  expectedEvidence      String?
+  weight                Float    @default(1)
+  recommendation        String?
+  relatedService        String?
+  companyTypeScope      String   @default("ALL") // ALL | Manufactura | Servicios
+  assessmentLevel       String   @default("express") // express | specialized
+  specializedModule     String? // future: operations, supply-chain, etc.
+  sortOrder             Int
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  responses             AssessmentResponse[]
+}
+
+model Assessment {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  consultantId    String
+  consultant      Consultant @relation(fields: [consultantId], references: [id])
+  status          String   @default("in_progress") // in_progress | completed
+  companyType     String // snapshot
+  assessmentType  String   @default("express") // express | specialized
+  moduleCode      String? // future specialized modules
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  globalScore     Float?
+  globalLevel     String?
+  notes           String?
+  isDemo          Boolean  @default(false)
+  parentId        String? // for re-evaluation linkage
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  responses       AssessmentResponse[]
+  dimensionScores DimensionScore[]
+}
+
+model AssessmentResponse {
+  id            String     @id @default(cuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  indicatorId   String
+  indicator     Indicator  @relation(fields: [indicatorId], references: [id])
+  score         Int? // 1-5
+  evidence      String?
+  observations  String?
+  risk          String? // Bajo | Medio | Alto | Critico
+  impact        String? // Bajo | Medio | Alto
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([assessmentId, indicatorId])
+}
+
+model DimensionScore {
+  id            String     @id @default(cuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  dimensionCode String
+  dimensionName String
+  weight        Float
+  averageScore  Float // 0-100
+  weightedScore Float
+  level         String?
+
+  @@unique([assessmentId, dimensionCode])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
