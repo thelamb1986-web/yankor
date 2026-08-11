@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, registerConsultor } from "@/lib/auth";
 import { getSupabaseAdminClient, isSupabaseConfigured } from "@/lib/supabase";
 import { isDatabaseConfigured, prisma } from "@/lib/prisma";
+import { resolvePerfil } from "@/lib/roles";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -15,15 +16,17 @@ export async function GET() {
     const { data, error } = await admin.from("users").select("*").order("created_at", { ascending: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({
-      consultants: (data || []).map((c) => ({
-        id: c.id,
-        name: c.nombre,
-        email: c.email,
-        role: c.rol,
-        status: c.activo ? "active" : "inactive",
-        assessmentsCount: 0,
-        createdAt: c.created_at,
-      })),
+      consultants: (data || [])
+        .filter((c) => resolvePerfil(c) !== "cliente")
+        .map((c) => ({
+          id: c.id,
+          name: c.nombre,
+          email: c.email,
+          role: resolvePerfil(c),
+          status: c.activo ? "active" : "inactive",
+          assessmentsCount: 0,
+          createdAt: c.created_at,
+        })),
     });
   }
 

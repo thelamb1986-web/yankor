@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { canCreateConsultor } from "@/lib/roles";
+import { canCreateConsultor, resolvePerfil } from "@/lib/roles";
 import { ConsultantForm } from "@/components/ConsultantForm";
 import { formatDate } from "@/lib/utils";
 import { isDatabaseConfigured, prisma } from "@/lib/prisma";
@@ -27,15 +27,12 @@ export default async function ConsultoresPage() {
     const admin = getSupabaseAdminClient();
     const { data } = await admin.from("users").select("*").order("created_at", { ascending: true });
     consultants = (data || [])
-      .filter((row) => {
-        const email = String(row.email || "").toLowerCase();
-        return row.rol === "consultor" || row.rol === "admin" || email === "bruno@yukti.mx" || email === "admin@yankor.com";
-      })
+      .filter((row) => resolvePerfil(row) !== "cliente")
       .map((row) => ({
         id: row.id,
         name: row.nombre,
         email: row.email,
-        role: row.rol === "admin" ? "admin" : "consultor",
+        role: resolvePerfil(row),
         status: row.activo ? "active" : "inactive",
         assessmentsCount: 0,
         createdAt: row.created_at,

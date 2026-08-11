@@ -22,10 +22,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS clientes_email_unique ON public.clientes (lowe
 CREATE UNIQUE INDEX IF NOT EXISTS clientes_rfc_unique ON public.clientes (rfc) WHERE rfc IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS clientes_user_id_unique ON public.clientes (user_id) WHERE user_id IS NOT NULL;
 
--- Consultor YANKOR
+-- Consultor YANKOR (incluye altas hechas antes de ampliar el CHECK)
 UPDATE public.users
 SET rol = 'consultor'
-WHERE lower(email) = 'bruno@yukti.mx';
+WHERE lower(email) = 'bruno@yukti.mx'
+   OR empresa = 'YANKOR_CONSULTOR';
 
 -- El resto de usuarios no-admin quedan como cliente
 UPDATE public.users

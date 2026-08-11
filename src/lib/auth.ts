@@ -9,6 +9,7 @@ import {
   validateEmailConfirmation,
   validateRfcSat,
 } from "./validation";
+import { CONSULTOR_EMPRESA_MARKER, resolvePerfil, type Perfil } from "./roles";
 
 const SESSION_COOKIE = "yankor_session";
 const SESSION_DAYS = 14;
@@ -63,14 +64,14 @@ const DEMO_ADMIN_EMAIL = "admin@yankor.com";
 const DEMO_ADMIN_PASSWORD = "yankor2026";
 const CONSULTOR_EMAILS = new Set(["bruno@yukti.mx"]);
 
-export type Perfil = "consultor" | "cliente" | "admin";
+export type { Perfil };
 
-function mapRole(rol: string | null | undefined, email?: string): Perfil {
-  const normalized = (email || "").toLowerCase().trim();
-  if (normalized === DEMO_ADMIN_EMAIL) return "admin";
-  if (CONSULTOR_EMAILS.has(normalized) || rol === "consultor") return "consultor";
-  if (rol === "admin") return "admin";
-  return "cliente";
+function mapRole(
+  rol: string | null | undefined,
+  email?: string,
+  empresa?: string | null,
+): Perfil {
+  return resolvePerfil({ rol, email, empresa });
 }
 
 async function insertClienteRecord(
@@ -169,12 +170,20 @@ async function findSupabaseUserById(id: string) {
   return data;
 }
 
-function toAuthUser(row: { id: string; nombre?: string; name?: string; email: string; rol?: string; role?: string }): AuthUser {
+function toAuthUser(row: {
+  id: string;
+  nombre?: string;
+  name?: string;
+  email: string;
+  rol?: string;
+  role?: string;
+  empresa?: string | null;
+}): AuthUser {
   return {
     id: row.id,
     name: row.nombre || row.name || row.email,
     email: row.email,
-    role: mapRole(row.rol || row.role, row.email),
+    role: mapRole(row.rol || row.role, row.email, row.empresa),
   };
 }
 
@@ -363,28 +372,30 @@ export async function registerConsultor(input: {
 
   const admin = getSupabaseAdminClient();
   const passwordHash = await bcrypt.hash(password, 10);
-  const { data, error } = await admin
-    .from("users")
-    .insert({
-      nombre: name,
-      email,
-      password_hash: passwordHash,
-      rol: "consultor",
-      activo: true,
-    })
-    .select("*")
-    .single();
+  const base = {
+    nombre: name,
+    email,
+    password_hash: passwordHash,
+    activo: true,
+  };
+  const attempts = [
+    { ...base, rol: "consultor" },
+    { ...base, rol: "consultor", empresa: CONSULTOR_EMPRESA_MARKER },
+    { ...base, rol: "cliente", empresa: CONSULTOR_EMPRESA_MARKER },
+  ];
 
-  if (error || !data) {
-    return {
-      error:
-        error?.message?.includes("users_rol_check")
-          ? "Falta aplicar la clasificación SQL (rol consultor/cliente). Ejecuta supabase/clasificacion_usuarios.sql en el SQL Editor."
-          : error?.message || "No se pudo crear el consultor.",
-    };
+  let lastError: { message?: string } | null = null;
+  for (const payload of attempts) {
+    const { data, error } = await admin.from("users").insert(payload as never).select("*").single();
+    if (!error && data) {
+      return { user: toAuthUser(data) };
+    }
+    lastError = error;
   }
 
-  return { user: toAuthUser(data) };
+  return {
+    error: lastError?.message || "No se pudo crear el consultor.",
+  };
 }
 
 export async function logout() {
